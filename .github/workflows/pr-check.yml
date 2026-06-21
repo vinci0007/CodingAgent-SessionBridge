@@ -1,0 +1,67 @@
+name: PR Check
+
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: Build and lint (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-22.04
+          - windows-latest
+          - macos-13
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux Tauri dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf rpm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript build
+        run: npm run build
+
+      - name: UI build
+        run: npm run build:ui
+
+      - name: Rust check
+        run: cargo check --manifest-path src-tauri/Cargo.toml --locked
+
+      - name: Blocklist scan
+        shell: bash
+        run: |
+          blocked_url='https://dc.hhhl.cc/chat/room/'"amlc1bekzi"
+          blocked_group='QQ'"群"
+          ! grep -R -n -F -e "$blocked_url" -e "$blocked_group" \
+            src src-tauri scripts package.json README.md README.zh-CN.md vite.config.ts tsconfig.json \
+            --exclude-dir=target --exclude-dir=dist --exclude-dir=dist-ui --exclude-dir=node_modules
+
+      - name: Mojibake scan
+        shell: bash
+        run: |
+          ! grep -R -n -E '鈫|鈻|�|鍔犺|鍒锋|澶辫|鏈|妯″|杞|Ã|Â' \
+            src src-tauri scripts README.md README.zh-CN.md package.json \
+            --exclude-dir=target --exclude-dir=dist --exclude-dir=dist-ui --exclude-dir=node_modules

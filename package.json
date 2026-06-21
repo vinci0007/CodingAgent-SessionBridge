@@ -1,0 +1,58 @@
+{
+  "name": "xfer",
+  "version": "0.1.0",
+  "description": "Seamlessly view and migrate AI coding sessions between Claude Code and Codex CLI",
+  "license": "MIT",
+  "keywords": [
+    "claude-code",
+    "codex",
+    "mcp",
+    "session",
+    "migration"
+  ],
+  "type": "module",
+  "bin": {
+    "xfer": "./dist/cli/index.js",
+    "xfer-mcp": "./dist/mcp/server.js"
+  },
+  "scripts": {
+    "build": "node scripts/clean-dist.mjs && tsc -p tsconfig.json",
+    "build:ui": "node scripts/prepare-ui-assets.mjs && vite build",
+    "dev": "tsx src/cli/index.ts",
+    "xfer": "tsx src/cli/index.ts",
+    "web": "tsx src/cli/index.ts web",
+    "mcp": "tsx src/mcp/server.ts",
+    "app:icons": "node scripts/prepare-icons.mjs",
+    "app:dev": "npm run app:icons && npm run build:ui && tauri dev",
+    "app:build": "npm run app:package",
+    "app:build:exe": "npm run app:icons && node scripts/clean-release-exe.mjs && npm run build:ui && tauri build --no-bundle",
+    "app:build:win": "npm run app:icons && node scripts/clean-release-exe.mjs && npm run build:ui && node scripts/package-win.mjs && node scripts/stage-versioned-bundles.mjs win-x64",
+    "app:build:mac": "npm run app:icons && npm run build:ui && tauri build --bundles app,dmg && node scripts/stage-versioned-bundles.mjs",
+    "app:build:linux": "npm run app:icons && npm run build:ui && tauri build --bundles appimage,deb,rpm && node scripts/stage-versioned-bundles.mjs",
+    "app:package": "npm run app:icons && npm run build:ui && tauri build && node scripts/stage-versioned-bundles.mjs",
+    "app:portable:win": "npm run app:build:exe && node scripts/package-portable-win.mjs",
+    "app:portable:mac": "npm run app:icons && npm run build:ui && tauri build --no-bundle && node scripts/package-portable.mjs",
+    "app:portable:linux": "npm run app:icons && npm run build:ui && tauri build --no-bundle && node scripts/package-portable.mjs",
+    "smoke": "tsx scripts/smoke.ts",
+    "test": "npm run build && npm run build:ui && npm run smoke",
+    "prepare": "npm run build"
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "package.json"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.2",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vite": "^8.0.16"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

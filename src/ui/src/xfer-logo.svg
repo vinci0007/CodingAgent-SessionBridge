@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="xfer all agent transfer">
+  <defs>
+    <linearGradient id="xferLogoGrad" x1="10" y1="8" x2="54" y2="58" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6aa8ff"/>
+      <stop offset=".48" stop-color="#10a37f"/>
+      <stop offset="1" stop-color="#d97757"/>
+    </linearGradient>
+  </defs>
+  <rect x="7" y="7" width="50" height="50" rx="14" fill="url(#xferLogoGrad)"/>
+  <path d="M20 24h19l-5-5 3-3 10 10-10 10-3-3 5-5H20z" fill="#fff"/>
+  <path d="M44 40H25l5 5-3 3-10-10 10-10 3 3-5 5h19z" fill="#fff" opacity=".92"/>
+  <circle cx="18" cy="18" r="3" fill="#fff" opacity=".95"/>
+  <circle cx="46" cy="18" r="3" fill="#fff" opacity=".82"/>
+  <circle cx="18" cy="46" r="3" fill="#fff" opacity=".78"/>
+  <circle cx="46" cy="46" r="3" fill="#fff" opacity=".95"/>
+</svg>

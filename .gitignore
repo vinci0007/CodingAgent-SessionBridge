@@ -1,0 +1,14 @@
+node_modules/
+dist/
+dist-ui/
+dist-portable/
+dist-release/
+.release/
+.claude/
+.agents/
+src-tauri/target/
+src-tauri/binaries/
+src/ui/public/
+*.log
+_smoke.ts
+_rt.ts
