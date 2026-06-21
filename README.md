@@ -8,8 +8,6 @@
 
 `xfer` is a lightweight desktop and CLI tool for inspecting, repairing, archiving, switching, and migrating AI coding sessions between Claude Code and Codex.
 
-Recommended repository name: **CodingAgent-SessionBridge**. The executable and package name remain **xfer** because the tool is meant to be short to type.
-
 ## What It Does
 
 Claude Code and Codex both store local session history as JSONL files, but their formats, project indexes, and resume flows are different. `xfer` normalizes those histories into one session model and provides:
@@ -91,7 +89,7 @@ Cross-platform packages must be built on the target operating system. GitHub Act
 This repository includes two GitHub Actions workflows:
 
 - **PR Check**: builds TypeScript, Vite UI, and Rust on Windows, macOS, and Linux; also scans for blocked text and mojibake.
-- **Release**: runs when `package.json` version changes on `main` or `master`, or when manually triggered. It creates a tag like `v0.1.0`, builds installer and portable artifacts for Windows, macOS, and Linux, and publishes a GitHub Release.
+- **Release**: runs when `package.json` version changes on `main` or `master`, or when manually triggered. It creates a tag like `v0.1.1`, builds installer and portable artifacts for Windows, macOS, and Linux, and publishes a GitHub Release.
 
 Release notes are generated from commits since the previous tag and include English and Chinese sections.
 

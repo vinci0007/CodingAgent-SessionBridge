@@ -8,8 +8,6 @@
 
 `xfer` 是一个轻量桌面端与 CLI 工具，用于在 Claude Code 与 Codex 之间查看、修复、归档、切换、同步和迁移 AI 编程会话。
 
-推荐仓库名：**CodingAgent-SessionBridge**。可执行文件和包名仍然保留为 **xfer**，因为日常命令更短、更好输入。
-
 ## 功能
 
 Claude Code 与 Codex 都会把本地会话保存为 JSONL，但格式、项目索引和恢复方式都不同。`xfer` 会把两边历史统一成一个会话模型，并提供：
@@ -91,7 +89,7 @@ npm run app:portable:linux # Linux portable 二进制目录
 仓库包含两个 GitHub Actions workflow：
 
 - **PR Check**：在 Windows、macOS、Linux 上构建 TypeScript、Vite UI、Rust，并扫描禁用文本与乱码。
-- **Release**：当 `package.json` 版本号在 `main` 或 `master` 上变化时运行，也支持手动触发。它会创建 `v0.1.0` 这种 tag，构建 Windows、macOS、Linux 的安装包与 portable 包，并发布 GitHub Release。
+- **Release**：当 `package.json` 版本号在 `main` 或 `master` 上变化时运行，也支持手动触发。它会创建 `v0.1.1` 这种 tag，构建 Windows、macOS、Linux 的安装包与 portable 包，并发布 GitHub Release。
 
 Release notes 会根据上一个 tag 以来的 commit 自动生成，并包含英文与中文两段。
 
