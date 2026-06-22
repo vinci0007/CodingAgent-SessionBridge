@@ -34,18 +34,18 @@ function previousPackageVersion() {
 }
 
 function previousTag() {
-  return git("tag --sort=-v:refname")
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line && line !== tag)[0] || "";
+  return (
+    git("tag --sort=-v:refname")
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line && line !== tag)[0] || ""
+  );
 }
 
 function sanitize(line) {
   const blockedUrl = "https://dc.hhhl.cc/chat/room/" + "amlc1bekzi";
-  const blockedGroup = "QQ" + "群";
-  return line
-    .split(blockedUrl).join("[redacted]")
-    .split(blockedGroup).join("[redacted]");
+  const blockedGroup = "QQ" + "\u7fa4";
+  return line.split(blockedUrl).join("[redacted]").split(blockedGroup).join("[redacted]");
 }
 
 const manual = process.env.GITHUB_EVENT_NAME === "workflow_dispatch";
@@ -62,11 +62,13 @@ const subjects = git(`log ${range} --pretty=format:%s`)
 const fallback = subjects.length ? subjects : [`Prepare ${tag} release.`];
 
 fs.mkdirSync(outDir, { recursive: true });
-fs.writeFileSync(notesFile, `# xfer ${tag}
+fs.writeFileSync(
+  notesFile,
+  `# xfer ${tag}
 
 ## English
 
-Repository name: agent-session-bridge
+Repository name: CodingAgent-SessionBridge
 
 Changes since ${prevTag || "the initial version"}:
 
@@ -74,12 +76,14 @@ ${fallback.map((line) => `- ${line}`).join("\n")}
 
 ## 中文
 
-仓库名：agent-session-bridge
+仓库名：CodingAgent-SessionBridge
 
 自 ${prevTag || "初始版本"} 以来的功能更新：
 
 ${fallback.map((line) => `- ${line}`).join("\n")}
-`, "utf8");
+`,
+  "utf8",
+);
 
 if (outputFile) {
   fs.appendFileSync(outputFile, `version=${version}\n`);

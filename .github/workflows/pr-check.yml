@@ -54,7 +54,7 @@ jobs:
         shell: bash
         run: |
           blocked_url='https://dc.hhhl.cc/chat/room/'"amlc1bekzi"
-          blocked_group='QQ'"群"
+          blocked_group='QQ'$(printf '\347\276\244')
           ! grep -R -n -F -e "$blocked_url" -e "$blocked_group" \
             src src-tauri scripts package.json README.md README.zh-CN.md vite.config.ts tsconfig.json \
             --exclude-dir=target --exclude-dir=dist --exclude-dir=dist-ui --exclude-dir=node_modules
