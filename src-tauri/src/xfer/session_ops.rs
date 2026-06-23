@@ -246,6 +246,112 @@ pub fn repair_session(opts: RepairSessionOptions) -> Result<RepairSessionResult,
   })
 }
 
+#[derive(Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepairBatchOptions {
+  // None = repair all agents; Some(set) = only listed agents.
+  pub agents: Option<Vec<Agent>>,
+  pub cwd: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepairBatchItem {
+  pub session_id: String,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub agent: Option<Agent>,
+  pub ok: bool,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub repaired_session_id: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub repaired_file_path: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub method: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub turns_written: Option<usize>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub error: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepairBatchResult {
+  pub total: usize,
+  pub repaired: usize,
+  pub failed: usize,
+  pub skipped: usize,
+  pub items: Vec<RepairBatchItem>,
+}
+
+pub fn repair_sessions_batch(opts: RepairBatchOptions) -> Result<RepairBatchResult, String> {
+  let agent_filter: Option<std::collections::HashSet<Agent>> = opts.agents.map(|agents| agents.into_iter().collect());
+  let mut all = crate::xfer::index::list_sessions(crate::xfer::index::ListOptions {
+    cwd: None,
+    agent: None,
+    limit: Some(5000),
+  });
+  all.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+
+  let mut items = Vec::new();
+  let mut repaired = 0usize;
+  let mut failed = 0usize;
+  let mut skipped = 0usize;
+
+  for entry in all {
+    if let Some(filter) = &agent_filter {
+      if !filter.contains(&entry.agent) {
+        continue;
+      }
+    }
+    if entry.parse_error.is_none() {
+      skipped += 1;
+      continue;
+    }
+
+    let result = repair_session(RepairSessionOptions {
+      session_id: entry.session_id.clone(),
+      cwd: opts.cwd.clone().or_else(|| entry.cwd.clone()),
+    });
+
+    match result {
+      Ok(ok) => {
+        repaired += 1;
+        items.push(RepairBatchItem {
+          session_id: entry.session_id.clone(),
+          agent: Some(ok.agent),
+          ok: true,
+          repaired_session_id: Some(ok.repaired_session_id),
+          repaired_file_path: Some(ok.repaired_file_path),
+          method: Some(ok.method),
+          turns_written: Some(ok.turns_written),
+          error: None,
+        });
+      }
+      Err(error) => {
+        failed += 1;
+        items.push(RepairBatchItem {
+          session_id: entry.session_id.clone(),
+          agent: Some(entry.agent),
+          ok: false,
+          repaired_session_id: None,
+          repaired_file_path: None,
+          method: None,
+          turns_written: None,
+          error: Some(error),
+        });
+      }
+    }
+  }
+
+  Ok(RepairBatchResult {
+    total: items.len(),
+    repaired,
+    failed,
+    skipped,
+    items,
+  })
+}
+
 fn locate(session_id: &str) -> Result<(Agent, PathBuf), String> {
   find_session(session_id).ok_or_else(|| format!("Session not found: {session_id}"))
 }

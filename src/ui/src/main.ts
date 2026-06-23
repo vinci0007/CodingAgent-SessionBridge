@@ -1,4 +1,4 @@
-﻿import { api, type Agent, type ClientId, type ClientStatus, type IndexStatus, type ModelMapping, type SessionIndexEntry, type SessionMapEntry, type SwitchResult, type MigrateResult, type UnifiedSession } from "./api.js";
+import { api, type Agent, type ClientId, type ClientStatus, type IndexStatus, type ModelMapping, type SessionIndexEntry, type SessionMapEntry, type SwitchResult, type MigrateResult, type UnifiedSession } from "./api.js";
 import "./styles.css";
 import type { ArchivedSession } from "./api.js";
 
@@ -805,7 +805,7 @@ async function openSession(id: string) {
         <button class="btn-3d" id="archiveBrokenSession">${icon("folder")}<span>备份归档</span></button>
       </div>
     </div>`;
-    document.querySelector<HTMLButtonElement>("#repairBrokenSession")?.addEventListener("click", () => void repairSessionById(id));
+    document.querySelector<HTMLButtonElement>("#repairBrokenSession")?.addEventListener("click", () => void showRepairDialog(id));
     document.querySelector<HTMLButtonElement>("#archiveBrokenSession")?.addEventListener("click", () => void archiveSessionById(id));
     return;
   }
@@ -989,11 +989,12 @@ function openContextMenu(sessionId: string, x: number, y: number) {
   const on = isAutoSync(sessionId);
   const menu = document.querySelector<HTMLDivElement>("#ctxMenu")!;
   const undoButton = s.mapping
-    ? `<button data-act="undo" data-id="${esc(sessionId)}">${icon("refresh", "ic-sm")}撤回迁移</button>`
+    ? `<button data-act="syncBack" data-id="${esc(sessionId)}">${icon("sync", "ic-sm")}同步回源</button><button data-act="undo" data-id="${esc(sessionId)}">${icon("refresh", "ic-sm")}撤回迁移</button>`
     : "";
   menu.innerHTML = `
     <button data-act="migrate" data-id="${esc(sessionId)}" data-to="${to}">${icon("external", "ic-sm")}迁移到 ${agentLabel(to)}</button>
     <button data-act="switch" data-id="${esc(sessionId)}" data-to="${to}">${icon("sync", "ic-sm")}切换到 ${agentLabel(to)}</button>
+    <button data-act="cliOpen" data-id="${esc(sessionId)}">${icon("terminal", "ic-sm")}CLI 打开</button>
     <button data-act="repair" data-id="${esc(sessionId)}">${icon("wrench", "ic-sm")}修复/重建会话</button>
     <button data-act="autosync" data-id="${esc(sessionId)}">${icon("sync", "ic-sm")}${on ? "关闭自动同步" : "开启自动同步"}</button>
     <button data-act="archive" data-id="${esc(sessionId)}">${icon("folder", "ic-sm")}备份归档</button>
@@ -1011,14 +1012,104 @@ function openContextMenu(sessionId: string, x: number, y: number) {
       closeContextMenu();
       if (act === "migrate") await migrateSessionById(id, target);
       else if (act === "switch") await switchProjectTo(target, sessionCwd(id), id);
-      else if (act === "repair") await repairSessionById(id);
+      else if (act === "cliOpen") await showCliOpenDialog(id);
+      else if (act === "repair") await showRepairDialog(id);
       else if (act === "autosync") toggleAutoSync(id);
       else if (act === "archive") await archiveSessionById(id);
       else if (act === "delete") await deleteSessionById(id);
+      else if (act === "syncBack") await syncBackById(id);
       else if (act === "undo") await undoMigrationById(id);
     };
   });
 }
+function isRealAgent(client: ClientId): client is Agent {
+  return client === "claude" || client === "codex";
+}
+
+function mappedSessionForClient(session: DisplaySession, client: ClientId): string | undefined {
+  if (!isRealAgent(client)) return undefined;
+  if (session.agent === client) return session.sessionId;
+  if (session.mapping?.sourceAgent === client) return session.mapping.sourceSessionId;
+  if (session.mapping?.targetAgent === client) return session.mapping.targetSessionId;
+  return undefined;
+}
+
+function cliOpenTargetRows(session: DisplaySession): string {
+  return clientOrder.map((client) => {
+    const availableSessionId = mappedSessionForClient(session, client);
+    const state = clientState(client);
+    const exists = Boolean(availableSessionId);
+    const unsupported = !isRealAgent(client);
+    const action = unsupported ? "unsupported" : exists ? "open" : "migrate";
+    const label = unsupported ? "暂未接入 CLI" : exists ? "打开 CLI" : "先迁移再打开";
+    const disabled = unsupported ? " disabled" : "";
+    const status = exists ? `已有会话 ${availableSessionId!.slice(0, 8)}` : unsupported ? "未接入会话迁移/恢复" : "目标助手中暂无此会话";
+    return `<button class="agent-choice cli-choice ${state.kind}" data-client="${client}" data-action="${action}" data-session="${esc(availableSessionId || "")}"${disabled}>
+      ${clientMark(client, false)}<span><strong>${esc(clientLabel(client))}</strong><small>${esc(status)}</small></span><em>${label}</em>
+    </button>`;
+  }).join("");
+}
+
+async function showCliOpenDialog(sessionId: string) {
+  const session = sessions.find((it) => it.sessionId === sessionId);
+  if (!session) return;
+  showDialog(`<h2>选择 CLI 打开方式</h2>
+    <p>列表与左侧已添加的代码助手同步。已存在于该助手中的会话可直接恢复；不存在时可先迁移再打开。</p>
+    <div class="agent-choice-list">${cliOpenTargetRows(session)}</div>`);
+  document.querySelectorAll<HTMLButtonElement>(".cli-choice").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const client = btn.dataset.client as ClientId;
+      const action = btn.dataset.action || "";
+      const targetSessionId = btn.dataset.session || "";
+      if (!isRealAgent(client)) {
+        showDialog(`<h2>${esc(clientLabel(client))} 暂未接入</h2><p>当前版本还没有 ${esc(clientLabel(client))} 的真实 CLI 恢复/迁移逻辑。添加客户端后会显示在这里，但需要先接入对应会话格式与 CLI 命令。</p>`);
+        return;
+      }
+      if (action === "open" && targetSessionId) {
+        await openInAgent(client, targetSessionId, sessionCwd(targetSessionId) || sessionCwd(sessionId));
+        return;
+      }
+      await confirmMigrateThenOpenCli(session, client);
+    });
+  });
+}
+
+async function confirmMigrateThenOpenCli(session: DisplaySession, target: Agent) {
+  showDialog(`<h2>先迁移到 ${agentLabel(target)}？</h2>
+    <p>该会话当前没有可在 ${agentLabel(target)} 中直接恢复的映射。确认后，xfer 会先迁移会话，再打开 ${agentLabel(target)} CLI。</p>
+    <div class="result-box"><p>源会话：<code>${esc(session.sessionId)}</code></p><p>目标助手：${agentLabel(target)}</p></div>
+    <div class="row"><button id="confirmMigrateOpenCli" class="btn-3d">${icon("external")}<span>迁移并打开 CLI</span></button></div>`);
+  document.querySelector<HTMLButtonElement>("#confirmMigrateOpenCli")?.addEventListener("click", async () => {
+    const steps: OpStep[] = [
+      { label: "迁移到目标助手", state: "active" },
+      { label: "打开目标 CLI", state: "pending" },
+      { label: "刷新映射", state: "pending" },
+    ];
+    showDialog(operationDialog(`迁移并打开 ${agentLabel(target)} CLI`, steps));
+    try {
+      const result = await api.switchSession({
+        to: target,
+        cwd: sessionCwd(session.sessionId),
+        sourceSessionId: session.sessionId,
+        mode: "faithful",
+        force: true,
+      });
+      setStep(steps, 0, "done", result.targetFilePath || result.targetSessionId);
+      setStep(steps, 1, "active");
+      showDialog(operationDialog(`迁移并打开 ${agentLabel(target)} CLI`, steps));
+      await api.openInAgent({ agent: target, sessionId: result.targetSessionId, cwd: sessionCwd(session.sessionId) });
+      setStep(steps, 1, "done", result.resumeCommand);
+      setStep(steps, 2, "done", "映射刷新已排入后台。.");
+      scheduleBackgroundListRefresh();
+      showDialog(operationDialog(`已打开 ${agentLabel(target)} CLI`, steps, switchResultBody(result, { ok: true, detail: "已完成迁移并打开 CLI。" })));
+    } catch (error) {
+      const active = steps.findIndex((step) => step.state === "active");
+      if (active >= 0) setStep(steps, active, "error", String(error));
+      showDialog(operationDialog("迁移并打开失败", steps, `<p class="error">${esc(error)}</p>`));
+    }
+  });
+}
+
 function agentLabel(agent: Agent): string {
   return agent === "claude" ? "Claude" : "Codex";
 }
@@ -1038,6 +1129,64 @@ function modelMappingHtml(mapping?: ModelMapping): string {
 
 function sessionCwd(sessionId: string): string | undefined {
   return sessions.find((it) => it.sessionId === sessionId)?.cwd || selectedProjectCwd();
+}
+
+async function showRepairDialog(sessionId?: string) {
+  const agents: Agent[] = ["claude", "codex"];
+  const agentButtons = agents
+    .map((a) => `<button class="btn-3d repair-pick" data-scope="agent" data-agent="${a}">${icon("wrench")}<span>仅 ${agentLabel(a)}</span></button>`)
+    .join("");
+  const currentBtn = sessionId
+    ? `<button class="btn-3d repair-pick" data-scope="current">${icon("wrench")}<span>仅当前会话</span></button>`
+    : "";
+  showDialog(`<h2>修复/重建会话</h2>
+    <p>选择修复范围。修复只处理有解析错误的损坏会话；正常会话会被跳过。修复不会覆盖原文件，而是在对应客户端会话库中创建可继续的新会话。</p>
+    <div class="row client-actions">
+      <button class="btn-3d repair-pick" data-scope="all">${icon("wrench")}<span>全部助手</span></button>
+      ${agentButtons}
+      ${currentBtn}
+    </div>`);
+  document.querySelectorAll<HTMLButtonElement>(".repair-pick").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const scope = btn.dataset.scope || "";
+      const agent = (btn.dataset.agent || "") as Agent;
+      if (scope === "current" && sessionId) {
+        await repairSessionById(sessionId);
+      } else if (scope === "agent") {
+        await repairSessionsBatch([agent]);
+      } else {
+        await repairSessionsBatch(undefined);
+      }
+    });
+  });
+}
+
+async function repairSessionsBatch(agents?: Agent[]) {
+  const scopeLabel = agents ? agents.map(agentLabel).join(" / ") : "全部助手";
+  showDialog(operationDialog(`修复 ${scopeLabel} 会话`, [
+    { label: "扫描损坏会话", state: "active" },
+    { label: "逐个解析或抽取 transcript", state: "pending" },
+    { label: "写回对应客户端新会话", state: "pending" },
+  ]));
+  try {
+    const result = await api.repairSessionsBatch({ agents });
+    scheduleBackgroundListRefresh();
+    const itemsHtml = result.items.map((item) => {
+      if (item.ok) {
+        return `<li><span class="ok-text">成功</span> ${agentLabel(item.agent || "")}：<code>${esc(item.sessionId.slice(0, 8))}</code> → <code>${esc(item.repairedSessionId || "")}</code>（${esc(item.method || "")}，${item.turnsWritten || 0} 条）</li>`;
+      }
+      return `<li><span class="warn-text">失败</span> ${agentLabel(item.agent || "")}：<code>${esc(item.sessionId.slice(0, 8))}</code> ${esc(item.error || "")}</li>`;
+    }).join("");
+    showDialog(`<h2>批量修复完成</h2>
+      <div class="result-box">
+        <p>范围：<strong>${esc(scopeLabel)}</strong></p>
+        <p>修复：${result.repaired}，失败：${result.failed}，跳过（正常）：${result.skipped}</p>
+        ${itemsHtml ? `<ul class="process-list">${itemsHtml}</ul>` : '<p class="hint">没有发现损坏会话。</p>'}
+      </div>
+      <p class="hint">修复不会覆盖损坏原文件；每个修复的会话在对应客户端会话库中创建可继续恢复的新会话。</p>`);
+  } catch (error) {
+    showDialog(`<h2>批量修复失败</h2><p class="error">${esc(error)}</p>`);
+  }
 }
 
 async function repairSessionById(sessionId: string) {
@@ -1137,6 +1286,50 @@ async function deleteSessionById(sessionId: string) {
   } catch (error) {
     showDialog(`<h2>删除预览失败</h2><p class="error">${esc(error)}</p>`);
   }
+}
+
+async function syncBackById(sessionId: string) {
+  const s = sessions.find((it) => it.sessionId === sessionId);
+  const mapping = s?.mapping;
+  if (!mapping) return;
+  const targetSessionId = mapping.targetSessionId === sessionId ? mapping.targetSessionId : sessionId;
+  const source = `${agentLabel(mapping.targetAgent)}:${mapping.targetSessionId.slice(0, 8)}`;
+  const target = `${agentLabel(mapping.sourceAgent)}:新会话`;
+  showDialog(`<h2>同步回源</h2>
+    <p>将目标端继续后的会话内容同步回源代码助手，并在源端创建一个新的可继续会话。原源会话和目标会话都不会被覆盖。</p>
+    <div class="result-box"><p>${esc(source)} → ${esc(target)}</p></div>
+    <div class="row"><button id="confirmSyncBack" class="btn-3d">${icon("sync")}<span>确认同步回源</span></button></div>`);
+  document.querySelector<HTMLButtonElement>("#confirmSyncBack")?.addEventListener("click", async () => {
+    const steps: OpStep[] = [
+      { label: "读取目标端最新会话", state: "active" },
+      { label: "迁移回源代码助手", state: "pending" },
+      { label: "记录反向映射", state: "pending" },
+      { label: "刷新列表", state: "pending" },
+    ];
+    showDialog(operationDialog("同步回源", steps));
+    try {
+      const result = await api.syncBack({ targetSessionId, cwd: mapping.cwd || sessionCwd(sessionId) });
+      setStep(steps, 0, "done", "目标端最新会话已读取。");
+      setStep(steps, 1, "done", result.backFilePath);
+      setStep(steps, 2, "done", result.statePath);
+      setStep(steps, 3, "active");
+      showDialog(operationDialog("同步回源", steps));
+      scheduleBackgroundListRefresh();
+      setStep(steps, 3, "done", "列表已在后台刷新。");
+      showDialog(operationDialog("已同步回源", steps, `<div class="result-box">
+        <p>${esc(result.note)}</p>
+        <p>源端新会话：<code>${esc(result.backSessionId)}</code></p>
+        <p>写入记录：${result.turnsWritten}</p>
+        ${modelMappingHtml(result.modelMapping)}
+        <p>文件：</p><code>${esc(result.backFilePath)}</code>
+        <p>恢复命令：</p><code>${esc(result.resumeCommand)}</code>
+      </div>`));
+    } catch (error) {
+      const active = steps.findIndex((step) => step.state === "active");
+      if (active >= 0) setStep(steps, active, "error", String(error));
+      showDialog(operationDialog("同步回源失败", steps, `<p class="error">${esc(error)}</p>`));
+    }
+  });
 }
 
 async function undoMigrationById(sessionId: string) {
@@ -1347,7 +1540,8 @@ async function openClaudeDesktopImport(sessionId: string, cwd?: string) {
         <p>如果 Claude Desktop Code tab 没有立即显示，请重启 Claude Desktop 后再检查。</p>
         ${result.reason ? `<p class="hint">${esc(result.reason)}</p>` : ""}
         <p>命令：</p><code>${esc(result.command)}</code>
-        ${result.filePath ? `<p>会话文件：</p><code>${esc(result.filePath)}</code>` : ""}`);
+        ${result.filePath ? `<p>会话文件：</p><code>${esc(result.filePath)}</code>` : ""}
+        <div class="row client-actions"><button class="btn-3d restart-client" data-agent="claude">${icon("refresh")}<span>重启 Claude Desktop</span></button></div>`);
       void refreshClientStatus();
     } catch (error) {
       showDialog(`<h2>Claude Desktop 导入失败</h2><p class="error">${esc(error)}</p><p>可以先用 CLI 恢复会话，然后在 Claude Code 中手动输入 <code>/desktop</code>。</p>`);

@@ -86,6 +86,17 @@ export interface UndoMigrationResult {
   desktopIndexRemoval?: unknown;
 }
 
+export interface SyncBackResult {
+  sourceAgent: Agent;
+  backSessionId: string;
+  backFilePath: string;
+  resumeCommand: string;
+  turnsWritten: number;
+  modelMapping: ModelMapping;
+  statePath: string;
+  note: string;
+}
+
 export interface XferSettings {
   storageRoot?: string;
   stateRoot?: string;
@@ -300,6 +311,26 @@ export const api = {
     return invoke<RepairSessionResult>("repair_session", input);
   },
 
+  async repairSessionsBatch(input: { agents?: Agent[]; cwd?: string }) {
+    if (!isTauri()) throw new Error("Session repair is only available in the desktop app");
+    return invoke<{
+      total: number;
+      repaired: number;
+      failed: number;
+      skipped: number;
+      items: Array<{
+        sessionId: string;
+        agent?: Agent;
+        ok: boolean;
+        repairedSessionId?: string;
+        repairedFilePath?: string;
+        method?: string;
+        turnsWritten?: number;
+        error?: string;
+      }>;
+    }>("repair_sessions_batch", input);
+  },
+
   async openInAgent(input: { agent: Agent; sessionId: string; cwd?: string }) {
     if (!isTauri()) throw new Error("Opening a terminal is only available in the desktop app");
     return invoke<{ ok: boolean; command: string; cwd?: string; filePath?: string }>("open_in_agent", input);
@@ -350,6 +381,11 @@ export const api = {
   async undoMigration(input: { cwd?: string; sourceSessionId?: string; targetSessionId?: string; removeTargetFile?: boolean }) {
     if (!isTauri()) throw new Error("Undo migration is only available in the desktop app");
     return invoke<UndoMigrationResult>("undo_migration", input);
+  },
+
+  async syncBack(input: { targetSessionId: string; cwd?: string }) {
+    if (!isTauri()) throw new Error("Sync back is only available in the desktop app");
+    return invoke<SyncBackResult>("sync_back", input);
   },
 
   async syncStatus(input: { cwd?: string } = {}) {

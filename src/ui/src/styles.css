@@ -156,6 +156,34 @@ button { cursor: pointer; }
 .btn-3d:hover { background: var(--grad-3d-hi); border-color: var(--accent); }
 .btn-3d:active { transform: translateY(1px); box-shadow: 0 2px 6px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.05); }
 .btn-3d:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+.agent-choice-list { display: grid; gap: 10px; margin-top: 12px; }
+.agent-choice {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.agent-choice:hover { border-color: var(--accent); background: var(--panel-hi); }
+.agent-choice:disabled { opacity: .55; cursor: not-allowed; }
+.agent-choice > .agent-logo { width: 22px; height: 22px; align-self: center; justify-self: center; }
+.agent-choice span { min-width: 0; display: grid; gap: 3px; }
+.agent-choice strong { white-space: normal; overflow-wrap: anywhere; line-height: 1.25; }
+.agent-choice small { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-choice em {
+  grid-column: 2;
+  color: var(--accent);
+  font-style: normal;
+  white-space: normal;
+  line-height: 1.25;
+}
 
 select, input, textarea {
   background: var(--panel); color: var(--fg); border: 1px solid var(--border); border-radius: 9px; padding: 7px 11px; font-size: 12px;

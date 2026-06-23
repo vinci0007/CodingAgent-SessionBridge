@@ -310,6 +310,14 @@ async fn undo_migration(app: tauri::AppHandle, args: Value) -> Result<Value, Str
 }
 
 #[tauri::command]
+async fn sync_back(app: tauri::AppHandle, args: Value) -> Result<Value, String> {
+  run_blocking(move || with_settings(&app, || {
+    let opts: xfer::sync::SyncBackOptions = serde_json::from_value(args).map_err(|e| e.to_string())?;
+    serde_json::to_value(xfer::sync::sync_back(opts)?).map_err(|e| e.to_string())
+  })).await
+}
+
+#[tauri::command]
 async fn index_status(app: tauri::AppHandle) -> Result<Value, String> {
   run_blocking(move || with_settings(&app, || {
     serde_json::to_value(xfer::index::index_status()).map_err(|e| e.to_string())
@@ -372,6 +380,14 @@ async fn repair_session(app: tauri::AppHandle, args: Value) -> Result<Value, Str
 }
 
 #[tauri::command]
+async fn repair_sessions_batch(app: tauri::AppHandle, args: Value) -> Result<Value, String> {
+  run_blocking(move || with_settings(&app, || {
+    let opts: xfer::session_ops::RepairBatchOptions = serde_json::from_value(args).map_err(|e| e.to_string())?;
+    serde_json::to_value(xfer::session_ops::repair_sessions_batch(opts)?).map_err(|e| e.to_string())
+  })).await
+}
+
+#[tauri::command]
 fn get_settings(app: tauri::AppHandle) -> AppSettings {
   settings_with_runtime(&app)
 }
@@ -398,7 +414,7 @@ fn reset_settings(app: tauri::AppHandle) -> Result<AppSettings, String> {
 #[tauri::command]
 async fn choose_directory(app: tauri::AppHandle, args: Value) -> Result<Value, String> {
   run_blocking(move || with_settings(&app, || {
-    let title = args.get("title").and_then(Value::as_str).unwrap_or("选择目录");
+    let title = args.get("title").and_then(Value::as_str).unwrap_or("闁瀚ㄩ惄顔肩秿");
     let selected = choose_directory_impl(title)?;
     serde_json::to_value(serde_json::json!({ "path": selected })).map_err(|e| e.to_string())
   })).await
@@ -1006,6 +1022,7 @@ fn main() {
       sync_status,
       sync_mappings,
       undo_migration,
+      sync_back,
       index_status,
       find_session_info,
       archive_preview,
@@ -1014,6 +1031,7 @@ fn main() {
       list_archives,
       restore_archive,
       repair_session,
+      repair_sessions_batch,
       get_settings,
       save_settings,
       reset_settings,

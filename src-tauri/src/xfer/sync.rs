@@ -282,6 +282,92 @@ fn undo_mapping(mapping: SessionMapEntry, remove_target_file: Option<bool>) -> R
   })
 }
 
+
+#[derive(Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncBackOptions {
+  pub target_session_id: String,
+  pub cwd: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncBackResult {
+  pub source_agent: Agent,
+  pub back_session_id: String,
+  pub back_file_path: String,
+  pub resume_command: String,
+  pub turns_written: usize,
+  pub model_mapping: ModelMapping,
+  pub state_path: String,
+  pub note: String,
+}
+
+/// Reverse-sync a migrated session back to its original agent.
+pub fn sync_back(opts: SyncBackOptions) -> Result<SyncBackResult, String> {
+  let target = load_session(&opts.target_session_id)
+    .ok_or_else(|| format!("Target session not found: {}", opts.target_session_id))?;
+
+  let mapping = db::find_active_mapping(None, Some(&opts.target_session_id))?
+    .or_else(|| {
+      let sessions = list_sessions(crate::xfer::index::ListOptions {
+        cwd: None,
+        agent: None,
+        limit: Some(1000),
+      });
+      let mut found = None;
+      for session in &sessions {
+        if let Some(cwd) = &session.cwd {
+          let project_cwd = default_cwd(Some(cwd));
+          let state = load_state(&project_cwd);
+          if let Some(m) = state.mappings.iter().find(|m| m.target_session_id == opts.target_session_id) {
+            found = Some(m.clone());
+            break;
+          }
+        }
+      }
+      found
+    })
+    .ok_or_else(|| format!("No forward mapping found for target session: {}. Migrate or switch first, then sync back.", opts.target_session_id))?;
+
+  let source_agent = mapping.source_agent;
+  let cwd = opts.cwd.or_else(|| Some(mapping.cwd.clone())).unwrap_or_else(|| {
+    default_cwd(target.meta.cwd.as_deref())
+  });
+
+  let result = migrate(MigrateOptions {
+    session_id: opts.target_session_id.clone(),
+    to: source_agent,
+    mode: Some("faithful".to_string()),
+    cwd: Some(cwd.clone()),
+  })?;
+
+  let state = load_state(&cwd);
+  let next_state = upsert_mapping(&state, SessionMapEntry {
+    cwd: cwd.clone(),
+    source_agent: target.meta.agent,
+    source_session_id: opts.target_session_id.clone(),
+    target_agent: source_agent,
+    target_session_id: result.session_id.clone(),
+    target_file_path: result.file_path.clone(),
+    created_at: Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+    source_updated_at: target.meta.updated_at.clone(),
+  });
+  save_state(&next_state, &cwd)?;
+
+  let resume_command = resume_command(source_agent, &result.session_id);
+  Ok(SyncBackResult {
+    source_agent,
+    back_session_id: result.session_id,
+    back_file_path: result.file_path,
+    resume_command,
+    turns_written: result.turns_written,
+    model_mapping: result.model_mapping,
+    state_path: state_path(&cwd).to_string_lossy().to_string(),
+    note: format!("Synced latest session from {} back to {} as a new session. Original is untouched.", target.meta.agent.as_str(), source_agent.as_str()),
+  })
+}
+
 pub fn sync_status(cwd: Option<&str>) -> String {
   let project_cwd = default_cwd(cwd);
   let sessions = list_sessions(crate::xfer::index::ListOptions {
@@ -310,7 +396,7 @@ pub fn sync_status(cwd: Option<&str>) -> String {
   }
   for m in state.mappings {
     lines.push(format!(
-      "  {}:{} → {}:{}  {}",
+      "  {}:{} 鈫?{}:{}  {}",
       m.source_agent.as_str(),
       short(&m.source_session_id),
       m.target_agent.as_str(),
