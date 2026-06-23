@@ -89,7 +89,7 @@ Cross-platform packages must be built on the target operating system. GitHub Act
 This repository includes two GitHub Actions workflows:
 
 - **PR Check**: builds TypeScript, Vite UI, and Rust on Windows, macOS, and Linux; also scans for blocked text and mojibake.
-- **Release**: runs when `package.json` version changes on `main` or `master`, or when manually triggered. It creates a tag like `v0.1.1`, builds installer and portable artifacts for Windows, macOS, and Linux, and publishes a GitHub Release.
+- **Release**: runs when `package.json` version changes on `main` or `master`, or when manually triggered. It creates a tag like `vX.Y.Z`, builds installer and portable artifacts for Windows, macOS, and Linux, and publishes a GitHub Release.
 
 Release notes are generated from commits since the previous tag and include English and Chinese sections.
 

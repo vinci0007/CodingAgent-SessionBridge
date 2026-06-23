@@ -89,7 +89,7 @@ npm run app:portable:linux # Linux portable 二进制目录
 仓库包含两个 GitHub Actions workflow：
 
 - **PR Check**：在 Windows、macOS、Linux 上构建 TypeScript、Vite UI、Rust，并扫描禁用文本与乱码。
-- **Release**：当 `package.json` 版本号在 `main` 或 `master` 上变化时运行，也支持手动触发。它会创建 `v0.1.1` 这种 tag，构建 Windows、macOS、Linux 的安装包与 portable 包，并发布 GitHub Release。
+- **Release**：当 `package.json` 版本号在 `main` 或 `master` 上变化时运行，也支持手动触发。它会创建 `vX.Y.Z` 这种 tag，构建 Windows、macOS、Linux 的安装包与 portable 包，并发布 GitHub Release。
 
 Release notes 会根据上一个 tag 以来的 commit 自动生成，并包含英文与中文两段。
 
